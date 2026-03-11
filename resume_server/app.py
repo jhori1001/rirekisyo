@@ -35,7 +35,7 @@ def generate():
     sc('C9', (data.get('lastName','') + '　' + data.get('firstName','')).strip())
 
     # 性別（先に書く）
-    sc('N14', data.get('gender',''))
+    sc('F15', data.get('gender',''))
 
     # 生年月日
     by = data.get('birthYear','')
@@ -53,9 +53,10 @@ def generate():
 
     # 住所
     sc('C16', data.get('addrKana',''))
-    sc('H16', ' ' + data.get('phone',''))
-    sc('C19', '〒' + data.get('zipCode','') + '　' + data.get('address',''))
-    sc('H19', ' ' + data.get('email',''))
+    sc('I16', ' ' + data.get('phone',''))
+    sc('C19', '〒' + data.get('zipCode',''))
+    sc('C21', data.get('address',''))
+    sc('H21', ' ' + data.get('email',''))
 
     # 学歴・職歴
     EDU_L = [35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80]
@@ -124,13 +125,15 @@ def generate():
     # 志望動機
     sc('L47', data.get('prText',''))
 
-    # 本人希望欄
+    # 本人希望欄（L71,74,77,80,83に1行ずつ）
     hp = []
     if data.get('currentSalary'): hp.append(f"現在年収：{data['currentSalary']}万円")
     if data.get('desiredSalary'): hp.append(f"希望年収：{data['desiredSalary']}万円")
     if data.get('pcSkills'):      hp.append(f"PCスキル：{data['pcSkills']}")
     if data.get('hopeText'):      hp.append(data['hopeText'])
-    sc('L71', '\n'.join(hp))
+    HOPE_ROWS = [71, 74, 77, 80, 83]
+    for i, r in enumerate(HOPE_ROWS):
+        sc(f'L{r}', hp[i] if i < len(hp) else '')
 
     # メモリ上に保存して返す
     output = io.BytesIO()
