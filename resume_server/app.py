@@ -107,27 +107,28 @@ def generate():
             sc(f'N{r}', '')
 
     # ヘッダー行を復元（書き込みで上書きされた場合の対策）
-    from openpyxl.styles import Font, Border, Side, PatternFill
+    from openpyxl.styles import Font, Border, Side
     hdr_font = Font(name='ＭＳ Ｐ明朝', size=10)
-    double_bottom = Border(
-        top=Side(border_style='double'),
-        bottom=Side(border_style='double'),
-        left=Side(border_style='thin'),
-        right=Side(border_style='thin')
-    )
-    def set_hdr(addr, val):
+
+    def set_hdr(addr, val, double_bottom=False):
         ws[addr] = val
         ws[addr].font = hdr_font
-        ws[addr].border = double_bottom
+        if double_bottom:
+            ws[addr].border = Border(
+                top=Side(border_style='thin'),
+                bottom=Side(border_style='double'),
+                left=Side(border_style='thin'),
+                right=Side(border_style='thin')
+            )
 
-    # 左ページ
-    set_hdr('B35', '年')
-    set_hdr('C35', '月')
-    set_hdr('D35', '学  歴 ・ 職  歴 （各別にまとめて書く）')
-    # 右ページ学歴職歴
-    set_hdr('L2', '年')
-    set_hdr('M2', '月')
-    set_hdr('N2', '学  歴 ・ 職  歴 （各別にまとめて書く）')
+    # 左ページ（B35/C35/D35の下線を二重線）
+    set_hdr('B35', '年', double_bottom=True)
+    set_hdr('C35', '月', double_bottom=True)
+    set_hdr('D35', '学  歴 ・ 職  歴 （各別にまとめて書く）', double_bottom=True)
+    # 右ページ学歴職歴（L2/M2/N2の下線を二重線）
+    set_hdr('L2', '年', double_bottom=True)
+    set_hdr('M2', '月', double_bottom=True)
+    set_hdr('N2', '学  歴 ・ 職  歴 （各別にまとめて書く）', double_bottom=True)
     # 右ページ資格
     set_hdr('L22', '年')
     set_hdr('M22', '月')
@@ -178,13 +179,13 @@ def generate():
     with zipfile.ZipFile(io.BytesIO(tmp_out.getvalue()), 'r') as out_zip:
         with zipfile.ZipFile(TEMPLATE_PATH, 'r') as tmpl_zip:
             with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as new_zip:
-                # 出力ファイルの全ファイルをコピー（drawingは除く）
+                # 出力ファイルの全ファイルをコピー（drawing関連は除く）
                 for item in out_zip.namelist():
-                    if 'drawing' not in item:
+                    if 'drawing' not in item and '_rels/sheet1' not in item:
                         new_zip.writestr(item, out_zip.read(item))
-                # テンプレートのdrawingファイルをコピー
+                # テンプレートのdrawingファイルとsheet1のrelsをコピー
                 for item in tmpl_zip.namelist():
-                    if 'drawing' in item:
+                    if 'drawing' in item or '_rels/sheet1' in item:
                         new_zip.writestr(item, tmpl_zip.read(item))
 
     with open(out_path, 'rb') as f:
