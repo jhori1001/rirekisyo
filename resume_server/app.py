@@ -2,9 +2,7 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import openpyxl
 from openpyxl import load_workbook
-from copy import copy
-import io
-import os
+import io, os, zipfile, shutil, tempfile
 
 app = Flask(__name__)
 CORS(app)
@@ -34,7 +32,7 @@ def generate():
     sc('C6', (data.get('lastKana','') + '　' + data.get('firstKana','')).strip())
     sc('C9', (data.get('lastName','') + '　' + data.get('firstName','')).strip())
 
-    # 性別（先に書く）
+    # 性別
     sc('F15', data.get('gender',''))
 
     # 生年月日
@@ -42,10 +40,9 @@ def generate():
     bm = data.get('birthMonth','')
     bd = data.get('birthDay','')
     if by:
-        from datetime import date as d
         try:
-            birth = d(int(by), int(bm), int(bd))
-            today2 = d.today()
+            birth = date(int(by), int(bm), int(bd))
+            today2 = date.today()
             age = today2.year - birth.year - ((today2.month, today2.day) < (birth.month, birth.day))
             sc('B14', f"{by}年　{str(bm).zfill(2)}月　{str(bd).zfill(2)}日生　（満　{age}　歳）")
         except:
@@ -60,7 +57,7 @@ def generate():
 
     # 学歴・職歴
     EDU_L = [35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80]
-    EDU_R = [2,5,8,11,16,19]
+    EDU_R = [5,8,11,14,16,19]
 
     ent = []
     education = data.get('education', [])
@@ -109,6 +106,16 @@ def generate():
             sc(f'M{r}', '')
             sc(f'N{r}', '')
 
+    # ヘッダー行を復元（書き込みで上書きされた場合の対策）
+    ws['L2'] = '年'
+    ws['M2'] = '月'
+    ws['N2'] = '学  歴 ・ 職  歴 （各別にまとめて書く）'
+    ws['L22'] = '年'
+    ws['M22'] = '月'
+    ws['N22'] = '資  格 ・ 免  許'
+    # 写真エリア
+    ws['N1'] = '写真をはる位置'
+
     # 資格
     LIC_R = [25,28,31,34,37,40]
     licenses = data.get('licenses', [])
@@ -125,7 +132,7 @@ def generate():
     # 志望動機
     sc('L47', data.get('prText',''))
 
-    # 本人希望欄（L71,74,77,80,83に1行ずつ）
+    # 本人希望欄
     hp = []
     if data.get('currentSalary'): hp.append(f"現在年収：{data['currentSalary']}万円")
     if data.get('desiredSalary'): hp.append(f"希望年収：{data['desiredSalary']}万円")
@@ -135,9 +142,37 @@ def generate():
     for i, r in enumerate(HOPE_ROWS):
         sc(f'L{r}', hp[i] if i < len(hp) else '')
 
-    # メモリ上に保存して返す
-    output = io.BytesIO()
-    wb.save(output)
+    # openpyxlで一時保存
+    tmp_out = io.BytesIO()
+    wb.save(tmp_out)
+    tmp_out.seek(0)
+
+    # テンプレートのdrawing1.xmlを出力ファイルに移植
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as f:
+        tmp_path = f.name
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as f:
+        out_path = f.name
+
+    # テンプレートからdrawingファイルを取得
+    with zipfile.ZipFile(TEMPLATE_PATH, 'r') as tmpl_zip:
+        drawing_files = [n for n in tmpl_zip.namelist() if 'drawing' in n]
+
+    # 出力ファイルにdrawingを追加
+    with zipfile.ZipFile(io.BytesIO(tmp_out.getvalue()), 'r') as out_zip:
+        with zipfile.ZipFile(TEMPLATE_PATH, 'r') as tmpl_zip:
+            with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as new_zip:
+                # 出力ファイルの全ファイルをコピー（drawingは除く）
+                for item in out_zip.namelist():
+                    if 'drawing' not in item:
+                        new_zip.writestr(item, out_zip.read(item))
+                # テンプレートのdrawingファイルをコピー
+                for item in tmpl_zip.namelist():
+                    if 'drawing' in item:
+                        new_zip.writestr(item, tmpl_zip.read(item))
+
+    with open(out_path, 'rb') as f:
+        output = io.BytesIO(f.read())
+    os.unlink(out_path)
     output.seek(0)
 
     name = (data.get('lastName','') + data.get('firstName','')).strip() or '応募者'
