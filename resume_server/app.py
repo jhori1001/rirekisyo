@@ -121,14 +121,28 @@ def generate():
                 right=Side(border_style='thin')
             )
 
-    # 左ページ（B35/C35/D35の下線を二重線）
-    set_hdr('B35', '年', double_bottom=True)
-    set_hdr('C35', '月', double_bottom=True)
-    set_hdr('D35', '学  歴 ・ 職  歴 （各別にまとめて書く）', double_bottom=True)
-    # 右ページ学歴職歴（L2/M2/N2の下線を二重線）
-    set_hdr('L2', '年', double_bottom=True)
-    set_hdr('M2', '月', double_bottom=True)
-    set_hdr('N2', '学  歴 ・ 職  歴 （各別にまとめて書く）', double_bottom=True)
+    def set_bottom_double(addr):
+        c = ws[addr]
+        b = c.border
+        c.border = Border(
+            top=b.top if b.top.border_style else Side(border_style='thin'),
+            bottom=Side(border_style='double'),
+            left=b.left if b.left.border_style else Side(),
+            right=b.right if b.right.border_style else Side()
+        )
+
+    # 左ページ：B35:B37, C35:C37, D35:I37 → 最終行37に二重線
+    set_hdr('B35', '年')
+    set_hdr('C35', '月')
+    set_hdr('D35', '学  歴 ・ 職  歴 （各別にまとめて書く）')
+    for col in ['B','C','D','E','F','G','H','I']:
+        set_bottom_double(f'{col}37')
+    # 右ページ学歴職歴：L2:L4, M2:M4, N2:R4 → 最終行4に二重線
+    set_hdr('L2', '年')
+    set_hdr('M2', '月')
+    set_hdr('N2', '学  歴 ・ 職  歴 （各別にまとめて書く）')
+    for col in ['L','M','N','O','P','Q','R']:
+        set_bottom_double(f'{col}4')
     # 右ページ資格
     set_hdr('L22', '年')
     set_hdr('M22', '月')
@@ -179,11 +193,27 @@ def generate():
     with zipfile.ZipFile(io.BytesIO(tmp_out.getvalue()), 'r') as out_zip:
         with zipfile.ZipFile(TEMPLATE_PATH, 'r') as tmpl_zip:
             with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as new_zip:
-                # 出力ファイルの全ファイルをコピー（drawing関連は除く）
                 for item in out_zip.namelist():
                     if 'drawing' not in item and '_rels/sheet1' not in item:
-                        new_zip.writestr(item, out_zip.read(item))
-                # テンプレートのdrawingファイルとsheet1のrelsをコピー
+                        if item == 'xl/worksheets/sheet1.xml':
+                            sheet_xml = out_zip.read(item).decode('utf-8')
+                            # xmlns:rを追加してdrawing参照を挿入
+                            sheet_xml = sheet_xml.replace(
+                                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+                                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                            )
+                            if '<drawing r:id=' not in sheet_xml:
+                                sheet_xml = sheet_xml.replace('</worksheet>', '<drawing r:id="rId2"/></worksheet>')
+                            new_zip.writestr(item, sheet_xml.encode('utf-8'))
+                        elif item == '[Content_Types].xml':
+                            ct_xml = out_zip.read(item).decode('utf-8')
+                            drawing_ct = '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'
+                            if drawing_ct not in ct_xml:
+                                ct_xml = ct_xml.replace('</Types>', drawing_ct + '</Types>')
+                            new_zip.writestr(item, ct_xml.encode('utf-8'))
+                        else:
+                            new_zip.writestr(item, out_zip.read(item))
+                # drawingファイルとsheet1のrelsをテンプレートからコピー
                 for item in tmpl_zip.namelist():
                     if 'drawing' in item or '_rels/sheet1' in item:
                         new_zip.writestr(item, tmpl_zip.read(item))
