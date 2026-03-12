@@ -107,14 +107,31 @@ def generate():
             sc(f'N{r}', '')
 
     # ヘッダー行を復元（書き込みで上書きされた場合の対策）
-    ws['L2'] = '年'
-    ws['M2'] = '月'
-    ws['N2'] = '学  歴 ・ 職  歴 （各別にまとめて書く）'
-    ws['L22'] = '年'
-    ws['M22'] = '月'
-    ws['N22'] = '資  格 ・ 免  許'
-    # 写真エリア
-    ws['N1'] = '写真をはる位置'
+    from openpyxl.styles import Font, Border, Side, PatternFill
+    hdr_font = Font(name='ＭＳ Ｐ明朝', size=10)
+    double_bottom = Border(
+        top=Side(border_style='double'),
+        bottom=Side(border_style='double'),
+        left=Side(border_style='thin'),
+        right=Side(border_style='thin')
+    )
+    def set_hdr(addr, val):
+        ws[addr] = val
+        ws[addr].font = hdr_font
+        ws[addr].border = double_bottom
+
+    # 左ページ
+    set_hdr('B35', '年')
+    set_hdr('C35', '月')
+    set_hdr('D35', '学  歴 ・ 職  歴 （各別にまとめて書く）')
+    # 右ページ学歴職歴
+    set_hdr('L2', '年')
+    set_hdr('M2', '月')
+    set_hdr('N2', '学  歴 ・ 職  歴 （各別にまとめて書く）')
+    # 右ページ資格
+    set_hdr('L22', '年')
+    set_hdr('M22', '月')
+    set_hdr('N22', '資  格 ・ 免  許')
 
     # 資格
     LIC_R = [25,28,31,34,37,40]
